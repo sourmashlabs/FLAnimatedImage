@@ -380,8 +380,8 @@ static NSHashTable *allAnimatedImagesWeak;
 {
     // Early return if the requested index is beyond bounds.
     // Note: We're comparing an index with a count and need to bail on greater than or equal to.
-    if (index >= self.frameCount) {
-        FLLog(FLLogLevelWarn, @"Skipping requested frame %lu beyond bounds (total frame count: %lu) for animated image: %@", (unsigned long)index, (unsigned long)self.frameCount, self);
+    if (index >= self.requestedFrameCount) {
+        FLLog(FLLogLevelWarn, @"Skipping requested frame %lu beyond bounds (total frame count: %lu) for animated image: %@", (unsigned long)index, (unsigned long)self.requestedFrameCount, self);
         return nil;
     }
     
@@ -394,7 +394,7 @@ static NSHashTable *allAnimatedImagesWeak;
 #endif
     
     // Quick check to avoid doing any work if we already have all possible frames cached, a common case.
-    if ([self.cachedFrameIndexes count] < self.frameCount) {
+    if ([self.cachedFrameIndexes count] < self.requestedFrameCount) {
         // If we have frames that should be cached but aren't and aren't requested yet, request them.
         // Exclude existing cached frames, frames already requested, and specially cached poster image.
         NSMutableIndexSet *frameIndexesToAddToCacheMutable = [self frameIndexesToCache];
@@ -424,9 +424,9 @@ static NSHashTable *allAnimatedImagesWeak;
 {
     // Order matters. First, iterate over the indexes starting from the requested frame index.
     // Then, if there are any indexes before the requested frame index, do those.
-    NSRange firstRange = NSMakeRange(self.requestedFrameIndex, self.frameCount - self.requestedFrameIndex);
+    NSRange firstRange = NSMakeRange(self.requestedFrameIndex, self.requestedFrameCount - self.requestedFrameIndex);
     NSRange secondRange = NSMakeRange(0, self.requestedFrameIndex);
-    if (firstRange.length + secondRange.length != self.frameCount) {
+    if (firstRange.length + secondRange.length != self.requestedFrameCount) {
         FLLog(FLLogLevelWarn, @"Two-part frame cache range doesn't equal full range.");
     }
     
@@ -531,6 +531,14 @@ static NSHashTable *allAnimatedImagesWeak;
     return image;
 }
 
+- (NSUInteger)requestedFrameCount
+{
+    if (_requestedFrameCount == 0) {
+        return _frameCount;
+    } else {
+        return _requestedFrameCount;
+    }
+}
 
 #pragma mark Frame Caching
 
@@ -538,14 +546,14 @@ static NSHashTable *allAnimatedImagesWeak;
 {
     NSMutableIndexSet *indexesToCache = nil;
     // Quick check to avoid building the index set if the number of frames to cache equals the total frame count.
-    if (self.frameCacheSizeCurrent == self.frameCount) {
+    if (self.frameCacheSizeCurrent == self.requestedFrameCount) {
         indexesToCache = [self.allFramesIndexSet mutableCopy];
     } else {
         indexesToCache = [[NSMutableIndexSet alloc] init];
         
         // Add indexes to the set in two separate blocks- the first starting from the requested frame index, up to the limit or the end.
         // The second, if needed, the remaining number of frames beginning at index zero.
-        NSUInteger firstLength = MIN(self.frameCacheSizeCurrent, self.frameCount - self.requestedFrameIndex);
+        NSUInteger firstLength = MIN(self.frameCacheSizeCurrent, self.requestedFrameCount - self.requestedFrameIndex);
         NSRange firstRange = NSMakeRange(self.requestedFrameIndex, firstLength);
         [indexesToCache addIndexesInRange:firstRange];
         NSUInteger secondLength = self.frameCacheSizeCurrent - firstLength;
@@ -727,6 +735,7 @@ static NSHashTable *allAnimatedImagesWeak;
     
     description = [description stringByAppendingFormat:@" size=%@", NSStringFromCGSize(self.size)];
     description = [description stringByAppendingFormat:@" frameCount=%lu", (unsigned long)self.frameCount];
+    description = [description stringByAppendingFormat:@" requestedFrameCount=%lu", (unsigned long)self.requestedFrameCount];
     
     return description;
 }
